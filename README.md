@@ -204,10 +204,10 @@ Gemini：
 - ✅ 多轮聊天
 - ✅ 配置文件管理
 - ✅ Git 管理
+- ✅ Streaming 输出
 
 下一步计划：
 
-- ⏳ Streaming 输出
 - ⏳ System Prompt
 - ⏳ Logging
 - ⏳ 聊天记录持久化（SQLite）

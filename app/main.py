@@ -8,7 +8,9 @@ def main():
     
     while True:
 
-        question = input("你: ")
+        question = input("你: ").strip()
+        if not question:
+            continue
         
         if question.lower() == "exit":
             print("退出聊天")

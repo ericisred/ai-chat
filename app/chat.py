@@ -1,4 +1,5 @@
-from google import  genai
+from google import genai
+from typing import Generator
 
 from config import GEMINI_API_KEY, MODEL_NAME
 
@@ -9,7 +10,7 @@ client = genai.Client(
 
 history = []
 
-def ask_gemini_stream(question: str) -> str:
+def ask_gemini_stream(question) -> Generator[str, None, None]:
     
     history.append({
         "role": "user",
