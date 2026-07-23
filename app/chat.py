@@ -9,23 +9,26 @@ client = genai.Client(
 
 history = []
 
-def ask_gemini(question: str) -> str:
+def ask_gemini_stream(question: str) -> str:
     
     history.append({
         "role": "user",
         "parts": [{"text": question}]
     })
 
-    response = client.models.generate_content(
+    response = client.models.generate_content_stream(
         model=MODEL_NAME, 
         contents=history
     )
 
-    answer = response.text
+    full_answer = ""
+
+    for chunk in response:
+        if chunk.text:
+            full_answer += chunk.text
+            yield chunk.text
 
     history.append({
         "role": "model",
-        "parts": [{"text": answer}]
+        "parts": [{"text": full_answer}]
     })
-    
-    return answer

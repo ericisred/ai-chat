@@ -1,4 +1,4 @@
-from chat import ask_gemini
+from chat import ask_gemini_stream
 
 
 def main():
@@ -13,10 +13,10 @@ def main():
         if question.lower() == "exit":
             print("退出聊天")
             break
+        print("\nGemini: ",end="",flush=True)
+        for chunk in ask_gemini_stream(question):
+            print(chunk,end="",flush=True)
 
-        answer = ask_gemini(question)
-        print("\nGemini: ")
-        print(answer)
         print("\n" + "-" * 50 + "\n")
 
 
