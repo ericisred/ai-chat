@@ -1,7 +1,7 @@
 # DeepSeek AI Chat 项目依赖
-
-# 核心 API 客户端 (支持 OpenAI 规范协议)
+# OpenAI 协议客户端 (支持 DeepSeek)
 openai>=1.0.0
-
+# Google Gemini 官方 SDK (支持 Gemini)
+google-genai>=1.0.0
 # 环境变量加载
 python-dotenv>=1.0.0

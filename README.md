@@ -1,28 +1,30 @@
 # AI Chat
 
-> 一个基于 DeepSeek API (OpenAI 协议) 的终端命令行 AI 对话助手。
+> 一个基于 Python + 多 LLM Provider 架构的终端命令行 AI 对话助手。
 
-这是我 AI 工程学习路线中的项目，用于学习大语言模型（LLM）API 调用、OpenAI 标准协议接入、System Prompt 结构化设计、上下文管理、流式打字输出 (Streaming) 以及工业级日志监控。
+本项目采用**策略模式（Strategy Pattern）与工厂模式（Factory Pattern）**设计，使业务逻辑与底层模型 API 彻底解耦。支持一键无缝切换 DeepSeek、Google Gemini 等多个大语言模型。
 
 ---
 
 ## ✨ Features
 
-- 🤖 **DeepSeek API 接入**：基于官方推荐的 OpenAI SDK，兼容性强、稳定高质。
-- ⚡ **流式打字响应（Streaming）**：回答按 Token 实时打字输出，提升终端交互体验。
-- 📜 **工业级 Logging 日志管理**：自动记录 API 请求耗时、首包延迟 (TTFT)、字符数与错误堆栈，支持 `RotatingFileHandler` 自动滚动日志归档。
-- 🎯 **结构化 System Prompt**：遵照 Role + Task + Constraints + Output Format 四要素工程规范重构提示词，输出四段式分析。
-- 💬 **标准多轮对话（Conversation Memory）**：基于 OpenAI 标准 `messages` 数组高效维系多轮上下文。
-- 🛡 **健壮的交互与异常处理**：支持 `Ctrl+C` / `Ctrl+D` 优雅退出与极佳的异常反馈。
-- 🔐 **环境配置解耦**：使用 `python-dotenv` 管理 `API_KEY` 与模型参数。
-- 🏗 **模块化设计**：入口、配置、日志、提示词与 API 调用彻底解耦，结构清晰。
+- 🏗 **多 LLM Provider 插件化架构**：面向接口编程（`BaseChatProvider`），通过 `LLMProviderFactory` 实现无缝切换模型。
+- 🤖 **多大模型支持**：
+  - **DeepSeek**（基于 OpenAI 规范协议）
+  - **Google Gemini**（基于官方 `google-genai` SDK，内建流式 Chunk 格式修补）
+- ⚡ **打字机流式输出 (Streaming)**：统一封装生成器，Token 实时打字显示。
+- 📜 **工业级 Logging 日志管理**：监控 API 耗时、首包延迟 (TTFT)、字符数与错误堆栈，支持 `RotatingFileHandler` 自动滚动归档。
+- 🎯 **结构化 System Prompt**：遵照 Role + Task + Constraints + Output Format 四要素工程规范重构提示词。
+- 💬 **标准多轮对话 (Conversation Memory)**：支持各模型下的完整上下文记忆。
+- 🛡 **交互与配置解耦**：快捷键 `Ctrl+C` / `Ctrl+D` 优雅退出，按需校验 `.env` 配置。
 
 ---
 
 ## 🛠 Tech Stack
 
 - Python 3.9+
-- DeepSeek API / OpenAI SDK (`openai>=1.0.0`)
+- OpenAI SDK (`openai>=1.0.0`)
+- Google GenAI SDK (`google-genai>=1.0.0`)
 - `python-dotenv`
 - Git
 
@@ -34,17 +36,23 @@
 ai-chat
 │
 ├── app
-│   ├── main.py          # 终端交互与程序入口
-│   ├── chat.py          # DeepSeek API 调用与性能监控
-│   ├── config.py        # 环境变量与 API 配置加载
-│   ├── logger.py        # 工业级 Logging 日志模块
-│   └── prompts.py       # 结构化 System Prompt 配置
+│   ├── main.py              # CLI 入口（面向接口编程，彻底解耦具体 SDK）
+│   ├── config.py            # 多 Provider 环境变量与配置校验中心
+│   ├── logger.py            # 工业级 Logging 日志模块
+│   ├── prompts.py           # 结构化 System Prompt 配置
+│   │
+│   └── llm/                 # [NEW] 多 LLM Provider 策略封装包
+│       ├── __init__.py      # 包导出与模块初始化
+│       ├── base.py          # LLM 抽象基类 (BaseChatProvider)
+│       ├── deepseek.py      # DeepSeek Provider (OpenAI 协议)
+│       ├── gemini.py        # Gemini Provider (google-genai SDK)
+│       └── factory.py       # LLM 提供者工厂类 (LLMProviderFactory)
 │
-├── logs/                # 自动生成的日志文件目录 (Git 忽略)
+├── logs/                    # 自动日志目录 (Git 忽略)
 │   └── ai-chat.log
-├── .env                 # 本地 API Key 与配置文件 (Git 忽略)
+├── .env                     # 本地 API Key 与模型配置文件 (Git 忽略)
 ├── .gitignore
-├── requirements.txt     # 项目依赖包列表
+├── requirements.txt         # 依赖包列表
 └── README.md
 ```
 
@@ -52,70 +60,55 @@ ai-chat
 
 # 🚀 Quick Start
 
-## 1. Clone Project
+## 1. Clone Project & Install Dependencies
 
 ```bash
 git clone https://github.com/yourname/ai-chat.git
 cd ai-chat
-```
 
----
-
-## 2. Create & Activate Virtual Environment
-
-创建虚拟环境：
-
-```bash
+# 创建并激活虚拟环境
 python3 -m venv .venv
-```
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-激活虚拟环境：
-- **Mac / Linux**：
-  ```bash
-  source .venv/bin/activate
-  ```
-- **Windows**：
-  ```bash
-  .venv\Scripts\activate
-  ```
-
----
-
-## 3. Install Dependencies
-
-```bash
+# 安装全套 Provider 依赖
 pip install -r requirements.txt
 ```
 
 ---
 
-## 4. Configure Environment Variables
+## 2. Configure Environment Variables
 
-在项目根目录下创建 `.env` 文件，内容如下：
+在根目录下创建 `.env` 文件，根据需求配置要使用的 LLM：
 
-```text
+```env
+# 选择激活的模型提供商: "deepseek" 或 "gemini"
+LLM_PROVIDER=deepseek
+
+# DeepSeek 配置
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-MODEL_NAME=deepseek-v4-flash
-```
+DEEPSEEK_MODEL=deepseek-v4-flash
 
-> ⚠️ **注意**：请务必将 `.env` 添加到 `.gitignore`，切勿提交真实的 API Key 到 GitHub。
+# Gemini 配置
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+```
 
 ---
 
-## 5. Run App
+## 3. Run App
 
 ```bash
 python app/main.py
 ```
 
-终端运行效果：
+终端运行效果（根据 `.env` 中 `LLM_PROVIDER` 动态加载）：
 
 ```text
-🤖 DeepSeek Chat 已启动
+🤖 DeepSeek Chat (deepseek-v4-flash) 已启动
 💡 输入 'exit' 退出
 
-你: 什么是 RAG？
+你: 你好
 DeepSeek: 💡 直观理解
 ...
 --------------------------------------------------
@@ -123,48 +116,40 @@ DeepSeek: 💡 直观理解
 
 ---
 
-# 💬 Conversation Example
-
-```text
-你: 我叫 Eric，我正在学习 Python 开发 AI 应用。
-DeepSeek: 你好，Eric！欢迎来到 Python 与 AI 开发的世界...
-
-你: 记不记得我是谁？
-DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 开发 AI 应用呢。
-```
-
----
-
 # 📖 Architecture Flow
 
 ```text
-           用户输入 (Terminal)
-                  │
-                  ▼
-             app/main.py  ──(日志记录)──► logs/ai-chat.log
-                  │
-                  ▼
-             app/chat.py  <─── app/prompts.py & app/config.py
-                  │
-                  ▼
-       DeepSeek API (OpenAI SDK)
-                  │
-                  ▼
-      Streaming Tokens Output
-                  │
-                  ▼
-           终端打字机实时显示
+                               app/main.py (业务层)
+                                     │
+                                     ▼
+                          LLMProviderFactory (工厂)
+                                     │
+               ┌─────────────────────┴─────────────────────┐
+               ▼                                           ▼
+       DeepSeekProvider                            GeminiProvider
+    (OpenAI 协议/SDK)                          (google-genai SDK)
+               │                                           │
+               └─────────────────────┬─────────────────────┘
+                                     ▼
+                           BaseChatProvider (抽象基类)
+                                     │
+                         ┌───────────┴───────────┐
+                         ▼                       ▼
+                   logger.py (性能/错误日志)  Terminal (流式打字输出)
 ```
 
 ---
 
 # 🔑 Environment Variables
 
-| 变量名 | 说明 | 默认值 |
+| 变量名 | 说明 | 可选值 / 默认值 |
 |------|-------------|-------|
-| `DEEPSEEK_API_KEY` | DeepSeek 开放平台 API Key | 无 (必需) |
-| `DEEPSEEK_BASE_URL` | DeepSeek 服务 Base URL | `https://api.deepseek.com` |
-| `MODEL_NAME` | 调用的模型名称 | `deepseek-v4-flash` |
+| `LLM_PROVIDER` | 当前激活的大模型提供商 | `deepseek` (默认) / `gemini` |
+| `DEEPSEEK_API_KEY` | DeepSeek 开放平台 Key | 无 (当激活 deepseek 时必需) |
+| `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | DeepSeek 模型名称 | `deepseek-v4-flash` |
+| `GEMINI_API_KEY` | Google Gemini API Key | 无 (当激活 gemini 时必需) |
+| `GEMINI_MODEL` | Gemini 模型名称 | `gemini-2.5-flash` |
 
 ---
 
@@ -172,26 +157,23 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
 
 本项目涵盖的核心工程技能：
 
-- [x] Python 虚拟环境与标准包管理
-- [x] OpenAI 兼容协议接入与调试
-- [x] DeepSeek 大模型流式输出 (Streaming)
-- [x] 结构化 System Prompt 设计 (Role+Task+Constraints+Output)
-- [x] 多轮上下文 Memory 管理
+- [x] 抽象工厂与策略模式在 AI 多模型架构中的落地
+- [x] 面向接口编程，实现业务层与底层 LLM SDK 彻底解耦
+- [x] OpenAI 兼容协议与 Google GenAI 双 SDK 接入
 - [x] 工业级 Logging 日志模块（TTFT 首包耗时监控、滚动日志）
-- [x] 配置解耦与敏感信息保护 (`.env`)
-- [x] 交互终端健壮性与异常捕获
+- [x] 结构化 System Prompt 设计 (Role+Task+Constraints+Output)
+- [x] 多模型流式输出 (Streaming) 与历史 Chunk 合并修复
 
 ---
 
 # 🗺 Roadmap
 
 当前版本：
-- ✅ DeepSeek API (OpenAI SDK) 接入
-- ✅ 多轮上下文记忆
-- ✅ Streaming 打字机实时流式响应
-- ✅ 结构化 System Prompt 定制（Role+Task+Constraints+Output）
+- ✅ 多 LLM Provider 架构重构（支持 DeepSeek / Gemini 一键切换）
+- ✅ LLMProviderFactory 工厂模式与 BaseChatProvider 接口规范
+- ✅ 多轮上下文记忆与流式打字响应
+- ✅ 结构化 System Prompt 定制
 - ✅ Logging 日志模块（TTFT 监控、耗时统计、滚动文件日志）
-- ✅ `Ctrl+C` / `Ctrl+D` 优雅中断与退出处理
 
 下一步计划：
 - ⏳ 聊天历史记录本地持久化（SQLite / JSON）
@@ -203,22 +185,21 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
 
 # 📝 Version History
 
-## v0.4 (Current)
-- 引入 Logging 日志模块，支持自动记录请求耗时、首包延迟 (TTFT) 与错误堆栈，保存日志至 `logs/ai-chat.log`。
-- 按照 Role / Task / Constraints / Output Format 四要素重构 `app/prompts.py` 结构化提示词。
-- 配置 `.gitignore` 自动忽略 `logs/` 目录。
+## v0.5 (Current)
+- 重构为多 LLM Provider 架构，新增 `app/llm/` 模块包。
+- 实现 `BaseChatProvider` 抽象基类与 `LLMProviderFactory` 工厂类。
+- 拆分 `DeepSeekProvider` 与 `GeminiProvider` 独立策略实现。
+- `app/main.py` 与具体模型 SDK 完全解耦，支持通过 `.env` 中 `LLM_PROVIDER` 一键无缝切换。
+
+## v0.4
+- 引入 Logging 日志模块，支持自动记录请求耗时、首包延迟 (TTFT) 与错误堆栈。
+- 重构 `app/prompts.py` 结构化提示词。
 
 ## v0.3
-- 从 Google Gemini 迁移至 DeepSeek API (OpenAI 协议)。
-- 新增独立的 `app/prompts.py` 管理 System Prompt。
-- 增加控制台打字机流式输出 (Streaming)。
+- 接入 DeepSeek API (OpenAI 协议) 与流式打字输出。
 
-## v0.2
-- 增加多轮上下文交互。
-- 配置模块解耦 (`app/config.py`)。
-
-## v0.1
-- 项目创建与初始结构规划。
+## v0.2 / v0.1
+- 多轮对话与基础配置解耦。
 
 ---
 
