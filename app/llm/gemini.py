@@ -5,6 +5,7 @@ from config import GEMINI_API_KEY, GEMINI_MODEL
 from prompts import SYSTEM_PROMPT
 from logger import logger
 from llm.base import BaseChatProvider
+from typing import List, Dict
 
 
 class GeminiProvider(BaseChatProvider):
@@ -76,3 +77,19 @@ class GeminiProvider(BaseChatProvider):
         except Exception as e:
             logger.error(f"[{self.provider_name}] 请求失败 ❌: {str(e)}", exc_info=True)
             raise e
+
+    def load_history(self, history_messages: List[Dict]):
+        """加载历史消息，转换为 Gemini SDK 的 Content 对象并恢复 _history"""
+        history_contents = []
+        for msg in history_messages:
+            # 映射角色: user -> user, assistant -> model
+            role = "user" if msg["role"] == "user" else "model"
+            content = types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=msg["content"])]
+            )
+            history_contents.append(content)
+        self.chat._history = history_contents
+        # 载入后自动进行一次历史裁剪
+        self._truncate_history()
+        logger.info(f"[{self.provider_name}] 成功载入 {len(history_messages)} 条历史数据库消息")

@@ -28,4 +28,8 @@ def validate_config():
 # 加载配置时自动进行合法性校验
 validate_config()
 
+# 数据库存储目录与文件路径
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "ai-chat.db")
 

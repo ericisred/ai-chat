@@ -4,6 +4,7 @@ from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 from prompts import SYSTEM_PROMPT
 from logger import logger
 from llm.base import BaseChatProvider
+from typing import List, Dict
 
 
 class DeepSeekProvider(BaseChatProvider):
@@ -71,3 +72,12 @@ class DeepSeekProvider(BaseChatProvider):
         except Exception as e:
             logger.error(f"[{self.provider_name}] 请求失败 ❌: {str(e)}", exc_info=True)
             raise e
+
+    def load_history(self, history_messages: List[Dict]):
+        """加载历史消息，覆盖重建 self.messages（保持首位 System Prompt）"""
+        self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for msg in history_messages:
+            self.messages.append({"role": msg["role"], "content": msg["content"]})
+        # 载入后自动进行一次历史裁剪
+        self._truncate_messages()
+        logger.info(f"[{self.provider_name}] 成功载入 {len(history_messages)} 条历史数据库消息")

@@ -1,22 +1,23 @@
 # AI Chat
 
-> 一个基于 Python + 多 LLM Provider 架构的终端命令行 AI 对话助手。
+> 一个基于 Python + 多 LLM Provider 架构与 SQLite 对话持久化的终端命令行 AI 助手。
 
-本项目采用**策略模式（Strategy Pattern）与工厂模式（Factory Pattern）**设计，使业务逻辑与底层模型 API 彻底解耦。支持一键无缝切换 DeepSeek、Google Gemini 等多个大语言模型，并内建滑动窗口上下文裁剪与日志监控。
+本项目采用**策略模式（Strategy Pattern）与工厂模式（Factory Pattern）**设计，实现业务层与 LLM SDK 的彻底解耦；同时引入全新的 **`memory/` 内存与持久化模块**，基于 SQLite 实现了优雅的对话持久化落盘与会话恢复。
 
 ---
 
 ## ✨ Features
 
-- 🏗 **多 LLM Provider 插件化架构**：面向接口编程（`BaseChatProvider`），通过 `LLMProviderFactory` 实现无缝切换模型。
+- 💾 **SQLite 对话持久化 (Conversation Persistence)**：基于零依赖的 `sqlite3` 实现 `sessions` 和 `messages` 落盘，支持启动选单恢复历史对话。
+- 🛡 **Lazy Session 惰性会话创建**：避免首次请求异常产生废垃圾会话，只有首轮问答成功才延迟落地数据库。
+- 🏗 **多 LLM Provider 插件化架构**：面向接口编程（`BaseChatProvider`），通过 `LLMProviderFactory` 实现无缝切换模型（Provider 完全与数据库解耦）。
 - 🤖 **多大模型支持**：
   - **DeepSeek**（基于 OpenAI 规范协议）
   - **Google Gemini**（基于官方 `google-genai` SDK，内建流式 Chunk 格式修补）
-- ✂️ **滑动窗口上下文裁剪 (Context Truncation)**：支持配置 `MAX_HISTORY_TURNS`，自动裁剪过旧对话，防止 Token 溢出并大幅节省 API 成本，同时永久锁定首位 System Prompt。
+- ✂️ **滑动窗口上下文裁剪 (Context Truncation)**：恢复历史时自动按 `MAX_HISTORY_TURNS` 裁剪过旧对话，防止 Token 溢出与费用暴涨。
 - ⚡ **打字机流式输出 (Streaming)**：统一封装生成器，Token 实时打字显示。
 - 📜 **工业级 Logging 日志管理**：监控 API 耗时、首包延迟 (TTFT)、字符数与错误堆栈，支持 `RotatingFileHandler` 自动滚动归档。
 - 🎯 **结构化 System Prompt**：遵照 Role + Task + Constraints + Output Format 四要素工程规范重构提示词。
-- 💬 **标准多轮对话 (Conversation Memory)**：支持各模型下的完整上下文记忆。
 - 🛡 **交互与配置解耦**：快捷键 `Ctrl+C` / `Ctrl+D` 优雅退出，按需校验 `.env` 配置。
 
 ---
@@ -24,6 +25,7 @@
 ## 🛠 Tech Stack
 
 - Python 3.9+
+- SQLite3 (Python 内置)
 - OpenAI SDK (`openai>=1.0.0`)
 - Google GenAI SDK (`google-genai>=1.0.0`)
 - `python-dotenv`
@@ -37,20 +39,25 @@
 ai-chat
 │
 ├── app
-│   ├── main.py              # CLI 入口（面向接口编程，彻底解耦具体 SDK）
-│   ├── config.py            # 多 Provider 环境变量、裁剪轮数与配置校验中心
+│   ├── main.py              # CLI 入口（面向接口编程，支持会话选单）
+│   ├── config.py            # 多 Provider 环境变量、数据库路径与配置校验
 │   ├── logger.py            # 工业级 Logging 日志模块
 │   ├── prompts.py           # 结构化 System Prompt 配置
 │   │
+│   ├── memory/              # [NEW] 对话内存与 SQLite 持久化模块
+│   │   ├── __init__.py      # 包导出与模块初始化
+│   │   ├── storage.py       # SQLite 底层数据访问对象 (SQLiteStorage)
+│   │   └── manager.py       # 会话与内存管理业务服务 (MemoryManager)
+│   │
 │   └── llm/                 # 多 LLM Provider 策略封装包
 │       ├── __init__.py      # 包导出与模块初始化
-│       ├── base.py          # LLM 抽象基类 (BaseChatProvider)
-│       ├── deepseek.py      # DeepSeek Provider (OpenAI 协议 + 消息裁剪)
-│       ├── gemini.py        # Gemini Provider (google-genai SDK + 历史裁剪)
+│       ├── base.py          # LLM 抽象基类 (BaseChatProvider + load_history 契约)
+│       ├── deepseek.py      # DeepSeek Provider (OpenAI 协议 + 历史装载)
+│       ├── gemini.py        # Gemini Provider (google-genai SDK + 历史装载)
 │       └── factory.py       # LLM 提供者工厂类 (LLMProviderFactory)
 │
-├── logs/                    # 自动日志目录 (Git 忽略)
-│   └── ai-chat.log
+├── data/                    # [NEW] SQLite 数据库目录 (ai-chat.db，Git 忽略)
+├── logs/                    # 自动日志目录 (ai-chat.log，Git 忽略)
 ├── .env                     # 本地 API Key 与模型配置文件 (Git 忽略)
 ├── .gitignore
 ├── requirements.txt         # 依赖包列表
@@ -71,7 +78,7 @@ cd ai-chat
 python3 -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 安装全套 Provider 依赖
+# 安装依赖
 pip install -r requirements.txt
 ```
 
@@ -79,7 +86,7 @@ pip install -r requirements.txt
 
 ## 2. Configure Environment Variables
 
-在根目录下创建 `.env` 文件，根据需求配置要使用的 LLM 与最大保留对话轮数：
+在根目录下创建 `.env` 文件：
 
 ```env
 # 选择激活的模型提供商: "deepseek" 或 "gemini"
@@ -106,15 +113,24 @@ GEMINI_MODEL=gemini-2.5-flash
 python app/main.py
 ```
 
-终端运行效果：
+终端选单与运行效果：
 
 ```text
 🤖 DeepSeek Chat (deepseek-v4-flash) 已启动
 💡 输入 'exit' 退出
 
-你: 什么是 RAG？
-DeepSeek: 💡 直观理解
-...
+==================================================
+📋 会话选单：
+  [0] 开启新对话 (默认)
+  [1] 恢复历史: 我叫 Eric (2026-07-24 16:30) [DeepSeek]
+  [2] 恢复历史: 什么是 RAG (2026-07-24 15:10) [DeepSeek]
+==================================================
+请选择 [0-5] (直接回车默认开启新对话): 1
+
+🔄 已成功恢复历史会话: [我叫 Eric] (共 4 条历史记录)
+
+你: 记不记得我是谁？
+DeepSeek: 当然记得，你是 Eric！
 --------------------------------------------------
 ```
 
@@ -125,21 +141,18 @@ DeepSeek: 💡 直观理解
 ```text
                                app/main.py (业务层)
                                      │
-                                     ▼
-                          LLMProviderFactory (工厂)
-                                     │
-               ┌─────────────────────┴─────────────────────┐
-               ▼                                           ▼
-       DeepSeekProvider                            GeminiProvider
-   (滑动窗口裁剪 Context)                    (滑动窗口裁剪 History)
-               │                                           │
-               └─────────────────────┬─────────────────────┘
-                                     ▼
-                           BaseChatProvider (抽象基类)
-                                     │
-                         ┌───────────┴───────────┐
-                         ▼                       ▼
-                   logger.py (性能/错误日志)  Terminal (流式打字输出)
+           ┌─────────────────────────┴─────────────────────────┐
+           ▼                                                   ▼
+ LLMProviderFactory (工厂)                           MemoryManager (内存服务)
+           │                                                   │
+ ┌─────────┴─────────┐                                ┌────────┴────────┐
+ ▼                   ▼                                ▼                 ▼
+DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
+ (OpenAI 协议)  (google-genai)                       │             (data/ai-chat.db)
+ │                   │                               ▼                 │
+ └─────────┬─────────┘                       滑动窗口裁剪 (Context Window)
+           ▼                                                           │
+ BaseChatProvider (抽象基类) ◄─────────────────────────────────────────┘
 ```
 
 ---
@@ -162,19 +175,21 @@ DeepSeek: 💡 直观理解
 
 本项目涵盖的核心工程技能：
 
+- [x] SQLite3 关系型数据库表设计与 CRUD 封装
+- [x] 解耦的 Memory / Storage 架构设计
+- [x] Lazy Session 惰性落盘与防僵尸会话策略
 - [x] 抽象工厂与策略模式在 AI 多模型架构中的落地
 - [x] 上下文历史滑动窗口裁剪算法 (Context Truncation)
 - [x] 面向接口编程，实现业务层与底层 LLM SDK 彻底解耦
-- [x] OpenAI 兼容协议与 Google GenAI 双 SDK 接入
 - [x] 工业级 Logging 日志模块（TTFT 首包耗时监控、滚动日志）
 - [x] 结构化 System Prompt 设计 (Role+Task+Constraints+Output)
-- [x] 多模型流式输出 (Streaming) 与历史 Chunk 合并修复
 
 ---
 
 # 🗺 Roadmap
 
 当前版本：
+- ✅ 聊天历史记录本地持久化（SQLite3 / MemoryManager / Lazy Session）
 - ✅ 多 LLM Provider 架构重构（支持 DeepSeek / Gemini 一键切换）
 - ✅ 上下文历史滑动窗口裁剪 (`MAX_HISTORY_TURNS`)
 - ✅ LLMProviderFactory 工厂模式与 BaseChatProvider 接口规范
@@ -183,7 +198,6 @@ DeepSeek: 💡 直观理解
 - ✅ Logging 日志模块（TTFT 监控、耗时统计、滚动文件日志）
 
 下一步计划：
-- ⏳ 聊天历史记录本地持久化（SQLite / JSON）
 - ⏳ 支持 R1 思考链 (Reasoning Content) 显示
 - ⏳ Web UI 界面（Streamlit / Gradio）
 - ⏳ FastAPI 后端接口封装
@@ -192,21 +206,17 @@ DeepSeek: 💡 直观理解
 
 # 📝 Version History
 
-## v0.6 (Current)
+## v0.7 (Current)
+- 引入全新的 `app/memory/` 持久化模块，基于 SQLite3 实现 `sessions` 和 `messages` 数据落盘。
+- 支持启动时通过选单恢复历史会话，恢复时自动结合 `MAX_HISTORY_TURNS` 实施滑动窗口裁切。
+- 引入 Lazy Session 机制，防止首轮提问异常在数据库产生僵尸垃圾数据。
+- 在 `BaseChatProvider` 中增加 `load_history` 契约，维持 Provider 的完全解耦。
+
+## v0.6
 - 引入滑动窗口上下文裁剪机制 (Context Truncation)，支持通过 `MAX_HISTORY_TURNS` 控制记忆上限。
-- 保护首位 System Prompt 不受裁剪影响，自动切片过期历史，防止 Token 溢出并大幅节省 API 费用。
 
-## v0.5
-- 重构为多 LLM Provider 架构，新增 `app/llm/` 模块包。
-- 实现 `BaseChatProvider` 抽象基类与 `LLMProviderFactory` 工厂类。
-- 拆分 `DeepSeekProvider` 与 `GeminiProvider` 独立策略实现。
-
-## v0.4
-- 引入 Logging 日志模块，支持自动记录请求耗时、首包延迟 (TTFT) 与错误堆栈。
-- 重构 `app/prompts.py` 结构化提示词。
-
-## v0.3 / v0.2 / v0.1
-- 基础功能迭代与架构优化。
+## v0.5 / v0.4 / v0.3 / v0.2 / v0.1
+- 多 LLM Provider 架构重构、Logging 模块、DeepSeek/Gemini 接入与基础迭代。
 
 ---
 
