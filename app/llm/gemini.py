@@ -20,7 +20,21 @@ class GeminiProvider(BaseChatProvider):
         )
         logger.info(f"初始化 {self.provider_name} Provider，模型: {self.model_name}")
 
+    def _truncate_history(self):
+        """滑动窗口裁剪 Gemini 的内部 history"""
+        max_history_msgs = self.max_history_turns * 2
+        history = self.chat.get_history()
+        if len(history) > max_history_msgs:
+            # 直接截取最近的 max_history_msgs 条合规消息
+            self.chat._history = history[-max_history_msgs:]
+            logger.info(
+                f"[{self.provider_name}] 触发上下文裁剪 ✂️: 保留最近 {self.max_history_turns} 轮对话"
+            )
+
     def ask_stream(self, question: str):
+        # 发送前先清理超长历史
+        self._truncate_history()
+        
         start_time = time.time()
         first_token_time = None
         start_len = len(self.chat.get_history())

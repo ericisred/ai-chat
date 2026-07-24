@@ -1,13 +1,20 @@
 from abc import ABC, abstractmethod
 from typing import Generator
+from config import MAX_HISTORY_TURNS
 
 
 class BaseChatProvider(ABC):
     """所有大语言模型 Provider 的抽象基类 (接口规范)"""
 
-    def __init__(self, provider_name: str, model_name: str):
+    def __init__(
+        self,
+        provider_name: str,
+        model_name: str,
+        max_history_turns: int = MAX_HISTORY_TURNS,
+    ):
         self.provider_name = provider_name
         self.model_name = model_name
+        self.max_history_turns = max_history_turns
 
     @abstractmethod
     def ask_stream(self, question: str) -> Generator[str, None, None]:

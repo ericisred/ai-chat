@@ -6,6 +6,9 @@ load_dotenv()
 # 当前使用的 LLM 提供商 (默认: deepseek，可选: "deepseek" / "gemini")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek").lower()
 
+# 读取最大历史保留轮数，默认为 10 轮
+MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "10"))
+
 # DeepSeek 配置
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
