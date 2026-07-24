@@ -2,7 +2,7 @@
 
 > 一个基于 DeepSeek API (OpenAI 协议) 的终端命令行 AI 对话助手。
 
-这是我 AI 工程学习路线中的项目，用于学习大语言模型（LLM）API 调用、OpenAI 标准协议接入、System Prompt 设置、上下文管理以及流式打字输出（Streaming）。
+这是我 AI 工程学习路线中的项目，用于学习大语言模型（LLM）API 调用、OpenAI 标准协议接入、System Prompt 结构化设计、上下文管理、流式打字输出 (Streaming) 以及工业级日志监控。
 
 ---
 
@@ -10,11 +10,12 @@
 
 - 🤖 **DeepSeek API 接入**：基于官方推荐的 OpenAI SDK，兼容性强、稳定高质。
 - ⚡ **流式打字响应（Streaming）**：回答按 Token 实时打字输出，提升终端交互体验。
-- 🎯 **System Prompt 定制**：独立封装系统提示词，支持设定 AI 角色定位（如乐叔 AI 助手）。
+- 📜 **工业级 Logging 日志管理**：自动记录 API 请求耗时、首包延迟 (TTFT)、字符数与错误堆栈，支持 `RotatingFileHandler` 自动滚动日志归档。
+- 🎯 **结构化 System Prompt**：遵照 Role + Task + Constraints + Output Format 四要素工程规范重构提示词，输出四段式分析。
 - 💬 **标准多轮对话（Conversation Memory）**：基于 OpenAI 标准 `messages` 数组高效维系多轮上下文。
 - 🛡 **健壮的交互与异常处理**：支持 `Ctrl+C` / `Ctrl+D` 优雅退出与极佳的异常反馈。
 - 🔐 **环境配置解耦**：使用 `python-dotenv` 管理 `API_KEY` 与模型参数。
-- 🏗 **模块化设计**：入口、配置、提示词与 API 调用彻底解耦，结构清晰。
+- 🏗 **模块化设计**：入口、配置、日志、提示词与 API 调用彻底解耦，结构清晰。
 
 ---
 
@@ -34,10 +35,13 @@ ai-chat
 │
 ├── app
 │   ├── main.py          # 终端交互与程序入口
-│   ├── chat.py          # DeepSeek / OpenAI 调用与会话管理
+│   ├── chat.py          # DeepSeek API 调用与性能监控
 │   ├── config.py        # 环境变量与 API 配置加载
-│   └── prompts.py       # 系统提示词 (System Prompt)
+│   ├── logger.py        # 工业级 Logging 日志模块
+│   └── prompts.py       # 结构化 System Prompt 配置
 │
+├── logs/                # 自动生成的日志文件目录 (Git 忽略)
+│   └── ai-chat.log
 ├── .env                 # 本地 API Key 与配置文件 (Git 忽略)
 ├── .gitignore
 ├── requirements.txt     # 项目依赖包列表
@@ -111,8 +115,9 @@ python app/main.py
 🤖 DeepSeek Chat 已启动
 💡 输入 'exit' 退出
 
-你: 你好
-DeepSeek: 你好！我是乐叔 AI 助手。很高兴认识你，今天有什么我可以帮你的吗？
+你: 什么是 RAG？
+DeepSeek: 💡 直观理解
+...
 --------------------------------------------------
 ```
 
@@ -136,7 +141,7 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
            用户输入 (Terminal)
                   │
                   ▼
-             app/main.py
+             app/main.py  ──(日志记录)──► logs/ai-chat.log
                   │
                   ▼
              app/chat.py  <─── app/prompts.py & app/config.py
@@ -159,7 +164,7 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
 |------|-------------|-------|
 | `DEEPSEEK_API_KEY` | DeepSeek 开放平台 API Key | 无 (必需) |
 | `DEEPSEEK_BASE_URL` | DeepSeek 服务 Base URL | `https://api.deepseek.com` |
-| `MODEL_NAME` | 调用的模型名称 (`deepseek-v4-flash` / `deepseek-v4-pro`) | `deepseek-v4-flash` |
+| `MODEL_NAME` | 调用的模型名称 | `deepseek-v4-flash` |
 
 ---
 
@@ -170,8 +175,9 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
 - [x] Python 虚拟环境与标准包管理
 - [x] OpenAI 兼容协议接入与调试
 - [x] DeepSeek 大模型流式输出 (Streaming)
-- [x] System Prompt 设计与注入
+- [x] 结构化 System Prompt 设计 (Role+Task+Constraints+Output)
 - [x] 多轮上下文 Memory 管理
+- [x] 工业级 Logging 日志模块（TTFT 首包耗时监控、滚动日志）
 - [x] 配置解耦与敏感信息保护 (`.env`)
 - [x] 交互终端健壮性与异常捕获
 
@@ -183,11 +189,11 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
 - ✅ DeepSeek API (OpenAI SDK) 接入
 - ✅ 多轮上下文记忆
 - ✅ Streaming 打字机实时流式响应
-- ✅ System Prompt 定制（乐叔 AI 助手）
+- ✅ 结构化 System Prompt 定制（Role+Task+Constraints+Output）
+- ✅ Logging 日志模块（TTFT 监控、耗时统计、滚动文件日志）
 - ✅ `Ctrl+C` / `Ctrl+D` 优雅中断与退出处理
 
 下一步计划：
-- ⏳ Logging 日志模块
 - ⏳ 聊天历史记录本地持久化（SQLite / JSON）
 - ⏳ 支持 R1 思考链 (Reasoning Content) 显示
 - ⏳ Web UI 界面（Streamlit / Gradio）
@@ -197,11 +203,15 @@ DeepSeek: 当然记得，你是 Eric！刚才你告诉我你正在学习 Python 
 
 # 📝 Version History
 
-## v0.3 (Current)
+## v0.4 (Current)
+- 引入 Logging 日志模块，支持自动记录请求耗时、首包延迟 (TTFT) 与错误堆栈，保存日志至 `logs/ai-chat.log`。
+- 按照 Role / Task / Constraints / Output Format 四要素重构 `app/prompts.py` 结构化提示词。
+- 配置 `.gitignore` 自动忽略 `logs/` 目录。
+
+## v0.3
 - 从 Google Gemini 迁移至 DeepSeek API (OpenAI 协议)。
 - 新增独立的 `app/prompts.py` 管理 System Prompt。
 - 增加控制台打字机流式输出 (Streaming)。
-- 修复流式传输下的上下文记忆 Bug。
 
 ## v0.2
 - 增加多轮上下文交互。

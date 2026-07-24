@@ -2,3 +2,5 @@
 .venv/
 __pycache__/
 
+# 日志目录
+logs/
