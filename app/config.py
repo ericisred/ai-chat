@@ -6,9 +6,6 @@ load_dotenv()
 # 当前使用的 LLM 提供商 (默认: deepseek，可选: "deepseek" / "gemini")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek").lower()
 
-# 读取最大历史保留轮数，默认为 10 轮
-MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "10"))
-
 # 滚动摘要参数配置
 # 触发摘要压缩的轮数阈值（默认 10 轮对话 / 20 条消息）
 SUMMARY_TRIGGER_TURNS = int(os.getenv("SUMMARY_TRIGGER_TURNS", "10"))
@@ -23,7 +20,7 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
 # Gemini 配置
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 def validate_config():
     """根据当前激活的 LLM_PROVIDER，检查必填的 API Key"""

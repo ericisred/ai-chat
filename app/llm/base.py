@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Generator, List, Dict
-from config import MAX_HISTORY_TURNS, SUMMARY_TRIGGER_TURNS, RECENT_KEEP_TURNS
+from config import SUMMARY_TRIGGER_TURNS, RECENT_KEEP_TURNS
 
 
 class BaseChatProvider(ABC):
@@ -10,13 +10,11 @@ class BaseChatProvider(ABC):
         self,
         provider_name: str,
         model_name: str,
-        max_history_turns: int = MAX_HISTORY_TURNS,
         summary_trigger_turns: int = SUMMARY_TRIGGER_TURNS,
         recent_keep_turns: int = RECENT_KEEP_TURNS,
     ):
         self.provider_name = provider_name
         self.model_name = model_name
-        self.max_history_turns = max_history_turns
         self.summary_trigger_turns = summary_trigger_turns
         self.recent_keep_turns = recent_keep_turns
         self.summary: str = ""
