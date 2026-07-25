@@ -1,7 +1,7 @@
 import time
 from openai import OpenAI
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
-from prompts import SYSTEM_PROMPT
+from prompts import build_system_prompt, SUMMARY_PROMPT
 from logger import logger
 from llm.base import BaseChatProvider
 from typing import List, Dict
@@ -16,20 +16,55 @@ class DeepSeekProvider(BaseChatProvider):
             base_url=DEEPSEEK_BASE_URL
         )
         self.messages = [
-            {"role": "system", "content": SYSTEM_PROMPT}
+            {"role": "system", "content": build_system_prompt(self.summary)}
         ]
         logger.info(f"初始化 {self.provider_name} Provider，模型: {self.model_name}")
 
+    def _generate_incremental_summary(self, old_messages: List[Dict]) -> str:
+        """调用 DeepSeek 针对旧对话做增量摘要压缩"""
+        formatted_dialogue = []
+        for msg in old_messages:
+            role_str = "用户" if msg["role"] == "user" else "助手"
+            formatted_dialogue.append(f"{role_str}: {msg['content']}")
+
+        dialogue_text = "\n".join(formatted_dialogue)
+        prompt = f"{SUMMARY_PROMPT.strip()}\n\n【现有历史摘要】：\n{self.summary or '无'}\n\n【新增的早期对话片段】：\n{dialogue_text}\n\n请输出最新的综合增量摘要："
+
+        logger.info(f"[{self.provider_name}] 正在触发 LLM 生成滚动记忆摘要 🔄...")
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                stream=False
+            )
+            new_summary = response.choices[0].message.content.strip()
+            logger.info(f"[{self.provider_name}] 滚动摘要生成成功 💡:\n{new_summary}")
+            return new_summary
+        except Exception as e:
+            logger.error(f"[{self.provider_name}] 滚动摘要生成失败: {e}", exc_info=True)
+            return self.summary
+
     def _truncate_messages(self):
-        """滑动窗口裁剪：保留 system_prompt + 最近 max_history_turns 轮对话"""
-        max_history_msgs = self.max_history_turns * 2
-        # 如果消息总数（除去 system_prompt）超过最大限制，进行裁剪
-        if len(self.messages) - 1 > max_history_msgs:
-            system_msg = self.messages[0]  # 永远保留首位的 System Prompt
-            recent_msgs = self.messages[-max_history_msgs:]  # 截取最近 N 轮
+        """滑动窗口裁剪与滚动摘要生成"""
+        trigger_msgs = self.summary_trigger_turns * 2
+        keep_msgs = self.recent_keep_turns * 2
+
+        # 除去首位 System Prompt 后的实际对话消息
+        dialogue_msgs = self.messages[1:]
+
+        if len(dialogue_msgs) > trigger_msgs:
+            old_messages = dialogue_msgs[:-keep_msgs]
+            recent_msgs = dialogue_msgs[-keep_msgs:]
+
+            # 生成最新摘要
+            self.summary = self._generate_incremental_summary(old_messages)
+
+            # 更新首位 System Prompt
+            system_msg = {"role": "system", "content": build_system_prompt(self.summary)}
             self.messages = [system_msg] + recent_msgs
+
             logger.info(
-                f"[{self.provider_name}] 触发上下文裁剪 ✂️: 保留首位 System Prompt + 最近 {self.max_history_turns} 轮对话"
+                f"[{self.provider_name}] 触发滚动摘要 ✂️: 压缩前 {len(old_messages)//2} 轮对话，保留最近 {self.recent_keep_turns} 轮明细"
             )
 
     def ask_stream(self, question: str):
@@ -73,11 +108,13 @@ class DeepSeekProvider(BaseChatProvider):
             logger.error(f"[{self.provider_name}] 请求失败 ❌: {str(e)}", exc_info=True)
             raise e
 
-    def load_history(self, history_messages: List[Dict]):
-        """加载历史消息，覆盖重建 self.messages（保持首位 System Prompt）"""
-        self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    def load_history(self, history_messages: List[Dict], summary: str = ""):
+        """加载历史消息与摘要，覆盖重建 self.messages（保持首位带 Summary 的 System Prompt）"""
+        self.summary = summary
+        system_msg = {"role": "system", "content": build_system_prompt(self.summary)}
+        self.messages = [system_msg]
         for msg in history_messages:
             self.messages.append({"role": msg["role"], "content": msg["content"]})
-        # 载入后自动进行一次历史裁剪
+        # 载入后自动进行一次历史裁剪与摘要检查
         self._truncate_messages()
-        logger.info(f"[{self.provider_name}] 成功载入 {len(history_messages)} 条历史数据库消息")
+        logger.info(f"[{self.provider_name}] 成功载入 {len(history_messages)} 条历史数据库消息，摘要长度: {len(self.summary)} 字符")

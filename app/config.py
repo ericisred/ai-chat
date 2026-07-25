@@ -9,6 +9,13 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek").lower()
 # 读取最大历史保留轮数，默认为 10 轮
 MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "10"))
 
+# 滚动摘要参数配置
+# 触发摘要压缩的轮数阈值（默认 10 轮对话 / 20 条消息）
+SUMMARY_TRIGGER_TURNS = int(os.getenv("SUMMARY_TRIGGER_TURNS", "10"))
+# 触发摘要压缩后，原对话明细中保留最近的轮数（默认保留最近 5 轮对话 / 10 条消息）
+RECENT_KEEP_TURNS = int(os.getenv("RECENT_KEEP_TURNS", "5"))
+
+
 # DeepSeek 配置
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")

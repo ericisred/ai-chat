@@ -19,17 +19,18 @@ class MemoryManager:
         """获取最近的历史会话列表"""
         return self.storage.get_recent_sessions(limit=limit)
 
-    def load_session(self, session_id: str) -> List[Dict]:
-        """激活并加载指定 Session 的所有历史消息"""
+    def load_session(self, session_id: str) -> tuple[List[Dict], str]:
+        """激活并加载指定 Session 的所有历史消息与摘要"""
         self.current_session_id = session_id
         messages = self.storage.get_session_messages(session_id)
-        logger.info(f"加载会话: {session_id} | 读取历史消息: {len(messages)} 条")
-        return messages
+        summary = self.storage.get_session_summary(session_id)
+        logger.info(f"加载会话: {session_id} | 读取历史消息: {len(messages)} 条 | 摘要长度: {len(summary)} 字符")
+        return messages, summary
 
     def save_turn(
-        self, question: str, answer: str, provider_name: str, model_name: str
+        self, question: str, answer: str, provider_name: str, model_name: str, summary: str = ""
     ):
-        """持久化保存一轮完整的对话（问 + 答）"""
+        """持久化保存一轮完整的对话（问 + 答），并更新摘要"""
         # 1. 延迟创建：如果是全新的对话且首次成功回答，此时才延迟创建会话记录
         if not self.current_session_id:
             session_id = f"sess_{uuid.uuid4().hex[:8]}"
@@ -46,4 +47,10 @@ class MemoryManager:
         # 2. 写入问答消息
         self.storage.save_message(self.current_session_id, "user", question)
         self.storage.save_message(self.current_session_id, "assistant", answer)
+
+        # 3. 若产生/更新了摘要，更新到数据库
+        if summary:
+            self.storage.update_session_summary(self.current_session_id, summary)
+
         logger.info(f"会话 [{self.current_session_id}] 成功持久化保存 1 轮对话")
+

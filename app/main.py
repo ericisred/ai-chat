@@ -6,7 +6,7 @@ from logger import logger
 
 def select_or_create_session(
     memory_manager: MemoryManager,
-) -> tuple[str, list]:
+) -> tuple[str, list, str]:
     """会话选单：引导用户开启新会话或恢复历史会话"""
     history_sessions = memory_manager.list_history_sessions(limit=5)
 
@@ -26,16 +26,16 @@ def select_or_create_session(
     if choice.isdigit() and 1 <= int(choice) <= len(history_sessions):
         selected_sess = history_sessions[int(choice) - 1]
         session_id = selected_sess["id"]
-        messages = memory_manager.load_session(session_id)
+        messages, summary = memory_manager.load_session(session_id)
         print(
-            f"\n🔄 已成功恢复历史会话: [{selected_sess['title']}] (共 {len(messages)} 条历史记录)\n"
+            f"\n🔄 已成功恢复历史会话: [{selected_sess['title']}] (共 {len(messages)} 条历史记录 | 摘要长度: {len(summary)} 字符)\n"
         )
-        return session_id, messages
+        return session_id, messages, summary
     else:
         # 准备新会话（延迟落盘）
         memory_manager.prepare_new_session()
         print("\n✨ 已准备开启新会话\n")
-        return "", []
+        return "", [], ""
 
 
 def main():
@@ -48,10 +48,10 @@ def main():
         print(f"🤖 {chat_session.provider_name} Chat ({chat_session.model_name}) 已启动")
         print("💡 输入 'exit' 退出\n")
 
-        session_id, history_messages = select_or_create_session(memory_manager)
+        session_id, history_messages, summary = select_or_create_session(memory_manager)
 
-        if history_messages:
-            chat_session.load_history(history_messages)
+        if history_messages or summary:
+            chat_session.load_history(history_messages, summary)
 
         while True:
             question = input("你: ").strip()
@@ -72,12 +72,13 @@ def main():
 
             print("\n" + "-" * 50 + "\n")
 
-            # 4. 对话成功后持久化落盘（如果是新对话，此时才延迟创建会话）
+            # 4. 对话成功后持久化落盘（传入最新的 summary）
             memory_manager.save_turn(
                 question,
                 full_answer,
                 chat_session.provider_name,
                 chat_session.model_name,
+                chat_session.summary,
             )
 
     except (KeyboardInterrupt, EOFError):

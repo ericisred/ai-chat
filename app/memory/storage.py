@@ -30,11 +30,18 @@ class SQLiteStorage:
                     title TEXT NOT NULL,
                     provider_name TEXT NOT NULL,
                     model_name TEXT NOT NULL,
+                    summary TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """
             )
+            # 兼容既有数据库：动态添加 summary 列
+            cursor.execute("PRAGMA table_info(sessions);")
+            columns = [column[1] for column in cursor.fetchall()]
+            if "summary" not in columns:
+                cursor.execute("ALTER TABLE sessions ADD COLUMN summary TEXT DEFAULT '';")
+                logger.info("已兼容升级数据库 schema：为 sessions 表添加 summary 列")
 
             # 创建 messages 消息明细表
             cursor.execute(
@@ -119,3 +126,33 @@ class SQLiteStorage:
             )
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
+
+    def get_session_summary(self, session_id: str) -> str:
+        """获取指定会话的记忆摘要"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT summary
+                FROM sessions
+                WHERE id = ?
+            """,
+                (session_id,),
+            )
+            row = cursor.fetchone()
+            return row["summary"] if row and row["summary"] else ""
+
+    def update_session_summary(self, session_id: str, summary: str):
+        """更新指定会话的记忆摘要"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE sessions
+                SET summary = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """,
+                (summary, session_id),
+            )
+            conn.commit()
+

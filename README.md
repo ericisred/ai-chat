@@ -8,16 +8,17 @@
 
 ## ✨ Features
 
-- 💾 **SQLite 对话持久化 (Conversation Persistence)**：基于零依赖的 `sqlite3` 实现 `sessions` 和 `messages` 落盘，支持启动选单恢复历史对话。
-- 🛡 **Lazy Session 惰性会话创建**：避免首次请求异常产生废垃圾会话，只有首轮问答成功才延迟落地数据库。
+- 🧠 **滚动摘要记忆系统 (Rolling Summary Memory)**：引入“长期摘要 + 短期明细”双层记忆架构。当对话超长时自动生成增量摘要并注入 System Instruction，既控制 Token 成本，又使早期重要记忆永不遗忘。
+- 🔧 **Gemini SDK 内部流式历史修复**：修补 `google-genai` SDK 在 `send_message_stream` 时因尾部 Chunk 校验导致历史未落盘的官方 Bug。
+- 💾 **SQLite 对话与摘要持久化**：基于 `sqlite3` 实现 `sessions` (含 `summary` 记忆摘要) 和 `messages` 落盘，支持会话恢复与记忆断点续聊。
+- 🛡 **Lazy Session 惰性会话创建**：避免首次请求异常产生垃圾数据，只有首轮问答成功才延迟落地数据库。
 - 🏗 **多 LLM Provider 插件化架构**：面向接口编程（`BaseChatProvider`），通过 `LLMProviderFactory` 实现无缝切换模型（Provider 完全与数据库解耦）。
 - 🤖 **多大模型支持**：
-  - **DeepSeek**（基于 OpenAI 规范协议）
-  - **Google Gemini**（基于官方 `google-genai` SDK，内建流式 Chunk 格式修补）
-- ✂️ **滑动窗口上下文裁剪 (Context Truncation)**：恢复历史时自动按 `MAX_HISTORY_TURNS` 裁剪过旧对话，防止 Token 溢出与费用暴涨。
+  - **DeepSeek**（基于 OpenAI 规范协议 + 增量摘要生成）
+  - **Google Gemini**（基于官方 `google-genai` SDK + 增量摘要生成）
 - ⚡ **打字机流式输出 (Streaming)**：统一封装生成器，Token 实时打字显示。
 - 📜 **工业级 Logging 日志管理**：监控 API 耗时、首包延迟 (TTFT)、字符数与错误堆栈，支持 `RotatingFileHandler` 自动滚动归档。
-- 🎯 **结构化 System Prompt**：遵照 Role + Task + Constraints + Output Format 四要素工程规范重构提示词。
+- 🎯 **结构化 System Prompt**：遵照 Role + Task + Constraints + Output Format 四要素工程规范重构提示词，支持动态拼接 Memory Summary。
 - 🛡 **交互与配置解耦**：快捷键 `Ctrl+C` / `Ctrl+D` 优雅退出，按需校验 `.env` 配置。
 
 ---
@@ -162,7 +163,8 @@ DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
 | 变量名 | 说明 | 可选值 / 默认值 |
 |------|-------------|-------|
 | `LLM_PROVIDER` | 当前激活的大模型提供商 | `deepseek` (默认) / `gemini` |
-| `MAX_HISTORY_TURNS` | 最长历史记忆保留轮数 | `10` (默认) |
+| `SUMMARY_TRIGGER_TURNS` | 触发滚动摘要压缩的对话轮数阈值 | `10` (默认) |
+| `RECENT_KEEP_TURNS` | 滚动摘要压缩后保留的最近对话明细轮数 | `5` (默认) |
 | `DEEPSEEK_API_KEY` | DeepSeek 开放平台 Key | 无 (当激活 deepseek 时必需) |
 | `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | DeepSeek 模型名称 | `deepseek-v4-flash` |
@@ -175,26 +177,27 @@ DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
 
 本项目涵盖的核心工程技能：
 
-- [x] SQLite3 关系型数据库表设计与 CRUD 封装
-- [x] 解耦的 Memory / Storage 架构设计
-- [x] Lazy Session 惰性落盘与防僵尸会话策略
+- [x] 滚动摘要双层记忆架构设计与增量 Summarization Prompt 工程
+- [x] 修复 `google-genai` SDK 官方流式历史未落盘 Bug
+- [x] SQLite3 关系型数据库 schema 动态升级与 CRUD 封装
+- [x] 解耦的 Memory / Storage 架构设计与 Lazy Session 防僵尸数据策略
 - [x] 抽象工厂与策略模式在 AI 多模型架构中的落地
-- [x] 上下文历史滑动窗口裁剪算法 (Context Truncation)
 - [x] 面向接口编程，实现业务层与底层 LLM SDK 彻底解耦
 - [x] 工业级 Logging 日志模块（TTFT 首包耗时监控、滚动日志）
-- [x] 结构化 System Prompt 设计 (Role+Task+Constraints+Output)
+- [x] 结构化 System Prompt 设计 (Role+Task+Constraints+Output) 及记忆融合
 
 ---
 
 # 🗺 Roadmap
 
 当前版本：
+- ✅ 滚动摘要记忆系统 (Rolling Summary Memory) 实现与动态 System Instruction 拼接
+- ✅ Gemini Provider 底层 `google-genai` SDK 流式历史 BUG 修复
+- ✅ SQLite 数据库 `sessions` 表支持 `summary` 字段持久化与载入
 - ✅ 聊天历史记录本地持久化（SQLite3 / MemoryManager / Lazy Session）
 - ✅ 多 LLM Provider 架构重构（支持 DeepSeek / Gemini 一键切换）
-- ✅ 上下文历史滑动窗口裁剪 (`MAX_HISTORY_TURNS`)
 - ✅ LLMProviderFactory 工厂模式与 BaseChatProvider 接口规范
 - ✅ 多轮上下文记忆与流式打字响应
-- ✅ 结构化 System Prompt 定制
 - ✅ Logging 日志模块（TTFT 监控、耗时统计、滚动文件日志）
 
 下一步计划：
@@ -206,7 +209,12 @@ DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
 
 # 📝 Version History
 
-## v0.7 (Current)
+## v0.8 (Current)
+- **滚动摘要记忆系统 (Rolling Summary Memory)**：实现“长期摘要 + 短期明细”双层记忆架构，彻底解决多轮长对话 Token 暴涨与硬裁剪丢记忆的困境。
+- **Gemini SDK 流式 Bug 修复**：修补 `google-genai` SDK 在 `send_message_stream` 下由于尾部 Chunk 校验导致 `_curated_history` 缺失的官方 BUG。
+- **持久化升级**：SQLite `sessions` 表新增 `summary` 字段支持持久化，并在选单恢复会话时双向同步记忆摘要。
+
+## v0.7
 - 引入全新的 `app/memory/` 持久化模块，基于 SQLite3 实现 `sessions` 和 `messages` 数据落盘。
 - 支持启动时通过选单恢复历史会话，恢复时自动结合 `MAX_HISTORY_TURNS` 实施滑动窗口裁切。
 - 引入 Lazy Session 机制，防止首轮提问异常在数据库产生僵尸垃圾数据。
