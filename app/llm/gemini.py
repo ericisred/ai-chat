@@ -38,7 +38,12 @@ class GeminiProvider(BaseChatProvider):
                 model=self.model_name,
                 contents=prompt
             )
-            new_summary = response.text.strip()
+            summary_parts = []
+            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if part.text:
+                        summary_parts.append(part.text)
+            new_summary = "".join(summary_parts).strip()
             logger.info(f"[{self.provider_name}] 滚动摘要生成成功 💡:\n{new_summary}")
             return new_summary
         except Exception as e:
@@ -85,12 +90,14 @@ class GeminiProvider(BaseChatProvider):
             full_text = []
 
             for chunk in response:
-                if chunk.text:
-                    if first_token_time is None:
-                        first_token_time = time.time()
+                if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                    for part in chunk.candidates[0].content.parts:
+                        if part.text:
+                            if first_token_time is None:
+                                first_token_time = time.time()
 
-                    full_text.append(chunk.text)
-                    yield chunk.text
+                            full_text.append(part.text)
+                            yield part.text
 
             total_cost = time.time() - start_time
             ttft = (first_token_time - start_time) if first_token_time else total_cost
