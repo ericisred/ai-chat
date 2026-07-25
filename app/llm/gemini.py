@@ -124,8 +124,15 @@ class GeminiProvider(BaseChatProvider):
         self.summary = summary
         self.chat._config.system_instruction = build_system_prompt(self.summary)
 
+        keep_msgs = self.recent_keep_turns * 2
+        # 若传入了已保存的 summary 且历史较长，只需装载最近 keep_msgs 条明细消息
+        if summary and len(history_messages) > keep_msgs:
+            target_messages = history_messages[-keep_msgs:]
+        else:
+            target_messages = history_messages
+
         history_contents = []
-        for msg in history_messages:
+        for msg in target_messages:
             # 映射角色: user -> user, assistant -> model
             role = "user" if msg["role"] == "user" else "model"
             content = types.Content(
@@ -135,6 +142,9 @@ class GeminiProvider(BaseChatProvider):
             history_contents.append(content)
         self.chat._curated_history = history_contents
         self.chat._comprehensive_history = list(history_contents)
-        # 载入后自动进行一次历史裁剪
-        self._truncate_history()
+
+        # 仅当没有已存在的 summary 且全量历史超长时，才进行初次滚动摘要计算
+        if not summary and len(history_messages) > self.summary_trigger_turns * 2:
+            self._truncate_history()
+
         logger.info(f"[{self.provider_name}] 成功载入 {len(history_messages)} 条历史记录，摘要长度: {len(self.summary)} 字符")

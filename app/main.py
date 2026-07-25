@@ -52,6 +52,8 @@ def main():
 
         if history_messages or summary:
             chat_session.load_history(history_messages, summary)
+            print(f"✨ 历史会话加载就绪！(共 {len(history_messages)} 条历史记录 | 摘要长度: {len(chat_session.summary)} 字符)\n")
+
 
         while True:
             question = input("你: ").strip()
@@ -64,22 +66,24 @@ def main():
                 break
 
             print(f"\n{chat_session.provider_name}: ", end="", flush=True)
+            try:
+                full_answer = ""
+                for chunk in chat_session.ask_stream(question):
+                    full_answer += chunk
+                    print(chunk, end="", flush=True)
 
-            full_answer = ""
-            for chunk in chat_session.ask_stream(question):
-                full_answer += chunk
-                print(chunk, end="", flush=True)
+                print("\n" + "-" * 50 + "\n")
 
-            print("\n" + "-" * 50 + "\n")
-
-            # 4. 对话成功后持久化落盘（传入最新的 summary）
-            memory_manager.save_turn(
-                question,
-                full_answer,
-                chat_session.provider_name,
-                chat_session.model_name,
-                chat_session.summary,
-            )
+                # 4. 对话成功后持久化落盘（传入最新的 summary）
+                memory_manager.save_turn(
+                    question,
+                    full_answer,
+                    chat_session.provider_name,
+                    chat_session.model_name,
+                    chat_session.summary,
+                )
+            except Exception as e:
+                print(f"\n❌ 请求发生异常 ({type(e).__name__}): 网络连接超时或不稳定，请稍后重试。\n")
 
     except (KeyboardInterrupt, EOFError):
         logger.info("用户触发快捷键 (Ctrl+C / Ctrl+D) 中断并退出程序")

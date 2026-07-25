@@ -9,6 +9,8 @@
 ## ✨ Features
 
 - 🧠 **滚动摘要记忆系统 (Rolling Summary Memory)**：引入“长期摘要 + 短期明细”双层记忆架构。当对话超长时自动生成增量摘要并注入 System Instruction，既控制 Token 成本，又使早期重要记忆永不遗忘。
+- ⚡ **历史会话 0 秒秒开加载**：恢复历史会话时直接复用已落盘的 `summary` 并加载近期明细，跳过耗时的重复 API 摘要计算，瞬间响应。
+- 🛡 **应用层网络超时与防 Crash 保护**：配置 60 秒 API 连接超时，并在 CLI 对话循环中优雅捕获网络异常（`APITimeoutError`），消除网络波动导致的程序崩溃。
 - 🔧 **Gemini SDK 内部流式历史修复**：修补 `google-genai` SDK 在 `send_message_stream` 时因尾部 Chunk 校验导致历史未落盘的官方 Bug。
 - 💾 **SQLite 对话与摘要持久化**：基于 `sqlite3` 实现 `sessions` (含 `summary` 记忆摘要) 和 `messages` 落盘，支持会话恢复与记忆断点续聊。
 - 🛡 **Lazy Session 惰性会话创建**：避免首次请求异常产生垃圾数据，只有首轮问答成功才延迟落地数据库。
@@ -40,21 +42,21 @@
 ai-chat
 │
 ├── app
-│   ├── main.py              # CLI 入口（面向接口编程，支持会话选单）
-│   ├── config.py            # 多 Provider 环境变量、数据库路径与配置校验
+│   ├── main.py              # CLI 入口（网络异常防护、防 Crash 捕获与选单交互）
+│   ├── config.py            # 环境变量、防错校验与数据库路径
 │   ├── logger.py            # 工业级 Logging 日志模块
-│   ├── prompts.py           # 结构化 System Prompt 配置
+│   ├── prompts.py           # 结构化 System Prompt 及动态 Summary 构建
 │   │
-│   ├── memory/              # [NEW] 对话内存与 SQLite 持久化模块
+│   ├── memory/              # 对话内存与 SQLite 持久化模块
 │   │   ├── __init__.py      # 包导出与模块初始化
-│   │   ├── storage.py       # SQLite 底层数据访问对象 (SQLiteStorage)
+│   │   ├── storage.py       # SQLite 底层 DAO (支持 summary 读写)
 │   │   └── manager.py       # 会话与内存管理业务服务 (MemoryManager)
 │   │
 │   └── llm/                 # 多 LLM Provider 策略封装包
 │       ├── __init__.py      # 包导出与模块初始化
-│       ├── base.py          # LLM 抽象基类 (BaseChatProvider + load_history 契约)
-│       ├── deepseek.py      # DeepSeek Provider (OpenAI 协议 + 历史装载)
-│       ├── gemini.py        # Gemini Provider (google-genai SDK + 历史装载)
+│       ├── base.py          # LLM 抽象基类 (BaseChatProvider 接口)
+│       ├── deepseek.py      # DeepSeek Provider (超时配置 + 滚动摘要 + 0秒秒开)
+│       ├── gemini.py        # Gemini Provider (google-genai SDK 修复 + 0秒秒开)
 │       └── factory.py       # LLM 提供者工厂类 (LLMProviderFactory)
 │
 ├── data/                    # [NEW] SQLite 数据库目录 (ai-chat.db，Git 忽略)
@@ -178,6 +180,8 @@ DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
 本项目涵盖的核心工程技能：
 
 - [x] 滚动摘要双层记忆架构设计与增量 Summarization Prompt 工程
+- [x] 历史会话 0 秒秒开恢复与缓冲步长防重复计算机制
+- [x] 应用层网络超时防护 (`timeout=60.0`) 与防 Crash 捕获
 - [x] 修复 `google-genai` SDK 官方流式历史未落盘 Bug
 - [x] SQLite3 关系型数据库 schema 动态升级与 CRUD 封装
 - [x] 解耦的 Memory / Storage 架构设计与 Lazy Session 防僵尸数据策略
@@ -191,6 +195,8 @@ DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
 # 🗺 Roadmap
 
 当前版本：
+- ✅ 应用层网络超时防护与防 Crash 捕获异常处理
+- ✅ 历史会话 0 秒秒开恢复与缓冲步长机制
 - ✅ 滚动摘要记忆系统 (Rolling Summary Memory) 实现与动态 System Instruction 拼接
 - ✅ Gemini Provider 底层 `google-genai` SDK 流式历史 BUG 修复
 - ✅ SQLite 数据库 `sessions` 表支持 `summary` 字段持久化与载入
@@ -211,8 +217,9 @@ DeepSeekProvider  GeminiProvider                 load_history     SQLiteStorage
 
 ## v0.8 (Current)
 - **滚动摘要记忆系统 (Rolling Summary Memory)**：实现“长期摘要 + 短期明细”双层记忆架构，彻底解决多轮长对话 Token 暴涨与硬裁剪丢记忆的困境。
-- **Gemini SDK 流式 Bug 修复**：修补 `google-genai` SDK 在 `send_message_stream` 下由于尾部 Chunk 校验导致 `_curated_history` 缺失的官方 BUG。
-- **持久化升级**：SQLite `sessions` 表新增 `summary` 字段支持持久化，并在选单恢复会话时双向同步记忆摘要。
+- ** Gemini SDK 流式 Bug 修复**：修补 `google-genai` SDK 在 `send_message_stream` 下由于尾部 Chunk 校验导致 `_curated_history` 缺失的官方 BUG。
+- **⚡ 历史会话 0 秒秒开加载与缓冲防护**：恢复带 `summary` 的历史会话时直接继承摘要实现秒开；配置防御性校验与 5 轮缓冲步长，消除频繁重复触发摘要。
+- **🛡 网络超时与防 Crash 保护**：配置 `timeout=60.0` 秒连接超时，并在对话循环中捕获网络异常 (`APITimeoutError`)，消除网络波动导致的程序崩溃。
 
 ## v0.7
 - 引入全新的 `app/memory/` 持久化模块，基于 SQLite3 实现 `sessions` 和 `messages` 数据落盘。

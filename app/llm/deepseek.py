@@ -13,7 +13,8 @@ class DeepSeekProvider(BaseChatProvider):
         super().__init__(provider_name="DeepSeek", model_name=DEEPSEEK_MODEL)
         self.client = OpenAI(
             api_key=DEEPSEEK_API_KEY,
-            base_url=DEEPSEEK_BASE_URL
+            base_url=DEEPSEEK_BASE_URL,
+            timeout=60.0,
         )
         self.messages = [
             {"role": "system", "content": build_system_prompt(self.summary)}
@@ -112,9 +113,20 @@ class DeepSeekProvider(BaseChatProvider):
         """加载历史消息与摘要，覆盖重建 self.messages（保持首位带 Summary 的 System Prompt）"""
         self.summary = summary
         system_msg = {"role": "system", "content": build_system_prompt(self.summary)}
+
+        keep_msgs = self.recent_keep_turns * 2
+        # 若传入了已保存的 summary 且历史较长，只需装载最近 keep_msgs 条明细消息
+        if summary and len(history_messages) > keep_msgs:
+            target_messages = history_messages[-keep_msgs:]
+        else:
+            target_messages = history_messages
+
         self.messages = [system_msg]
-        for msg in history_messages:
+        for msg in target_messages:
             self.messages.append({"role": msg["role"], "content": msg["content"]})
-        # 载入后自动进行一次历史裁剪与摘要检查
-        self._truncate_messages()
+
+        # 仅当没有已存在的 summary 且全量历史超长时，才进行初次滚动摘要计算
+        if not summary and len(history_messages) > self.summary_trigger_turns * 2:
+            self._truncate_messages()
+
         logger.info(f"[{self.provider_name}] 成功载入 {len(history_messages)} 条历史数据库消息，摘要长度: {len(self.summary)} 字符")
