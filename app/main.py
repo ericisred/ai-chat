@@ -33,7 +33,6 @@ def select_or_create_session(
         return session_id, messages, summary
     else:
         # 准备新会话（延迟落盘）
-        memory_manager.prepare_new_session()
         print("\n✨ 已准备开启新会话\n")
         return "", [], ""
 
@@ -74,8 +73,9 @@ def main():
 
                 print("\n" + "-" * 50 + "\n")
 
-                # 4. 对话成功后持久化落盘（传入最新的 summary）
-                memory_manager.save_turn(
+                # 4. 对话成功后持久化落盘，并在局部变量中更新 session_id
+                session_id = memory_manager.save_turn(
+                    session_id,
                     question,
                     full_answer,
                     chat_session.provider_name,

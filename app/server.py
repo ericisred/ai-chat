@@ -109,25 +109,21 @@ async def chat_completions(req: ChatRequest):
         if req.session_id:
             messages, summary, _ = memory_manager.load_session(req.session_id)
             chat_session.load_history(messages, summary)
-        else:
-            memory_manager.prepare_new_session()
-
         # 生成回答
         full_answer = ""
         for chunk in chat_session.ask_stream(req.question):
             full_answer += chunk
-
-        # 保存持久化落盘
-        memory_manager.save_turn(
+        # 保存持久化落盘，获取返回的真实 session_id
+        target_session_id = memory_manager.save_turn(
+            req.session_id,
             req.question,
             full_answer,
             chat_session.provider_name,
             chat_session.model_name,
             chat_session.summary,
         )
-
         return ChatResponse(
-            session_id=memory_manager.current_session_id,
+            session_id=target_session_id,
             answer=full_answer,
             provider=chat_session.provider_name,
             model=chat_session.model_name,
@@ -153,9 +149,6 @@ async def chat_stream(req: ChatRequest):
             if req.session_id:
                 messages, summary, _ = memory_manager.load_session(req.session_id)
                 chat_session.load_history(messages, summary)
-            else:
-                memory_manager.prepare_new_session()
-
             full_answer = ""
             for chunk in chat_session.ask_stream(req.question):
                 full_answer += chunk
@@ -164,28 +157,27 @@ async def chat_stream(req: ChatRequest):
                     "data": json.dumps(
                         {
                             "content": chunk,
-                            "session_id": memory_manager.current_session_id or "",
+                            "session_id": req.session_id or "",
                         },
                         ensure_ascii=False,
                     )
                 }
                 await asyncio.sleep(0.01)  # 微小让步让事件循环及时推流
-
-            # 问答结束，落盘保存
-            memory_manager.save_turn(
+            # 问答结束，无状态落盘保存并获取最终 session_id
+            target_session_id = memory_manager.save_turn(
+                req.session_id,
                 req.question,
                 full_answer,
                 chat_session.provider_name,
                 chat_session.model_name,
                 chat_session.summary,
             )
-
-            # 推送完成标志 [DONE]
+            # 推送完成标志 [DONE]，带上确定的 target_session_id
             yield {
                 "data": json.dumps(
                     {
                         "content": "[DONE]",
-                        "session_id": memory_manager.current_session_id,
+                        "session_id": target_session_id,
                     },
                     ensure_ascii=False,
                 )

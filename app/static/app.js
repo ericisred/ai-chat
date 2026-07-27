@@ -165,7 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchSessions();
     }
 
-    // --- 6. 发送消息与 SSE 打字机渲染 ---
+    // --- 6. 发送消息与 SSE 帧动画打字机渲染 ---
     async function handleSend() {
         const question = chatInputEl.value.trim();
         if (!question || isGenerating) return;
@@ -196,6 +196,21 @@ document.addEventListener("DOMContentLoaded", () => {
         scrollToBottom();
 
         let rawAnswerText = "";
+        let renderPending = false;
+        let animationFrameId = null;
+
+        // 💡 帧率节流渲染器：利用浏览器的刷新率绘制，避免没必要的高频 DOM 全量重绘
+        function scheduleRender() {
+            if (!renderPending) {
+                renderPending = true;
+                animationFrameId = requestAnimationFrame(() => {
+                    const parsedMarkdown = renderMarkdown(rawAnswerText);
+                    messageBodyEl.innerHTML = parsedMarkdown + '<span class="cursor"></span>';
+                    scrollToBottom();
+                    renderPending = false;
+                });
+            }
+        }
 
         try {
             const response = await fetch("/api/chat/stream", {
@@ -239,10 +254,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             }
                             if (data.content) {
                                 rawAnswerText += data.content;
-                                // 实时渲染 Markdown + 保留结尾闪烁光标
-                                const parsedMarkdown = window.marked ? marked.parse(rawAnswerText) : escapeHtml(rawAnswerText);
-                                messageBodyEl.innerHTML = parsedMarkdown + '<span class="cursor"></span>';
-                                scrollToBottom();
+                                // 触发高效的帧更新
+                                scheduleRender();
                             }
                         } catch (e) {
                             console.warn("解析 SSE 行失败:", line, e);
@@ -265,8 +278,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            // 对话结束，移除闪烁光标，渲染最终 Markdown
-            const finalMarkdown = window.marked ? marked.parse(rawAnswerText) : escapeHtml(rawAnswerText);
+            // 对话结束，取消待处理的帧动画，渲染最终带时间戳的 Markdown
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            const finalMarkdown = renderMarkdown(rawAnswerText);
             const nowTime = formatTime();
             messageBodyEl.innerHTML = `<div>${finalMarkdown}</div><div class="message-time">${nowTime}</div>`;
             fetchSessions(); // 刷新 sidebar 列表显示最新标题
@@ -275,17 +289,19 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("流式生成异常:", err);
             messageBodyEl.innerHTML = `<span style="color: #ef4444;">❌ 无法获取回答: ${escapeHtml(err.message)}</span>`;
         } finally {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
             setGeneratingState(false);
             scrollToBottom();
         }
     }
+
 
     // --- 辅助工具函数 ---
     function appendMessageCard(role, content, timeVal) {
         const card = document.createElement("div");
         card.className = `message-card ${role}`;
         const avatarIcon = role === "user" ? "👤" : (currentProvider === "gemini" ? "✨" : "🚀");
-        const renderedContent = window.marked ? marked.parse(content) : escapeHtml(content);
+        const renderedContent = renderMarkdown(content);
         const timeDisplay = formatTime(timeVal);
 
         card.innerHTML = `
@@ -316,6 +332,12 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function renderMarkdown(text) {
+        if (!text) return "";
+        const rawHtml = window.marked ? marked.parse(text) : escapeHtml(text);
+        return window.DOMPurify ? DOMPurify.sanitize(rawHtml) : rawHtml;
     }
 
     function formatTime(timeVal) {
