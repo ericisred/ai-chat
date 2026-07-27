@@ -156,3 +156,14 @@ class SQLiteStorage:
             )
             conn.commit()
 
+    def delete_session(self, session_id: str) -> bool:
+        """彻底删除指定 Session 及其所有的关联消息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            # 1. 删除消息
+            cursor.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+            # 2. 删除主会话记录
+            cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted

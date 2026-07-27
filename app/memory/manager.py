@@ -54,3 +54,8 @@ class MemoryManager:
 
         logger.info(f"会话 [{self.current_session_id}] 成功持久化保存 1 轮对话")
 
+    def delete_session(self, session_id: str) -> bool:
+        """删除指定会话及其持久化数据"""
+        if self.current_session_id == session_id:
+            self.current_session_id = ""
+        return self.storage.delete_session(session_id)

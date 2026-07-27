@@ -5,3 +5,9 @@ openai>=1.0.0
 google-genai>=1.0.0
 # 环境变量加载
 python-dotenv>=1.0.0
+
+# FastAPI Web 框架及 Web 服务器
+fastapi>=0.100.0
+uvicorn>=0.22.0
+sse-starlette>=1.6.0
+pydantic>=2.0.0
