@@ -19,13 +19,14 @@ class MemoryManager:
         """获取最近的历史会话列表"""
         return self.storage.get_recent_sessions(limit=limit)
 
-    def load_session(self, session_id: str) -> tuple[List[Dict], str]:
-        """激活并加载指定 Session 的所有历史消息与摘要"""
+    def load_session(self, session_id: str) -> tuple[List[Dict], str, Dict]:
+        """激活并加载指定 Session 的所有历史消息、摘要及元数据"""
         self.current_session_id = session_id
         messages = self.storage.get_session_messages(session_id)
         summary = self.storage.get_session_summary(session_id)
+        session_meta = self.storage.get_session(session_id) or {}
         logger.info(f"加载会话: {session_id} | 读取历史消息: {len(messages)} 条 | 摘要长度: {len(summary)} 字符")
-        return messages, summary
+        return messages, summary, session_meta
 
     def save_turn(
         self, question: str, answer: str, provider_name: str, model_name: str, summary: str = ""

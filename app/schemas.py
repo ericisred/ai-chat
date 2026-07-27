@@ -39,6 +39,8 @@ class SessionDetailResponse(BaseModel):
     """会话详情响应数据模型"""
 
     session_id: str
+    provider_name: Optional[str] = ""
+    model_name: Optional[str] = ""
     summary: str = ""
     messages: List[Dict[str, str]] = []
 

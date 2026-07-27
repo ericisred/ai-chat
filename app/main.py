@@ -26,7 +26,7 @@ def select_or_create_session(
     if choice.isdigit() and 1 <= int(choice) <= len(history_sessions):
         selected_sess = history_sessions[int(choice) - 1]
         session_id = selected_sess["id"]
-        messages, summary = memory_manager.load_session(session_id)
+        messages, summary, _ = memory_manager.load_session(session_id)
         print(
             f"\n🔄 已成功恢复历史会话: [{selected_sess['title']}] (共 {len(messages)} 条历史记录 | 摘要长度: {len(summary)} 字符)\n"
         )

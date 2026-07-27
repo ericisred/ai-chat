@@ -4,6 +4,7 @@ import json
 import asyncio
 from typing import List
 from fastapi import FastAPI, HTTPException, status
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
@@ -70,14 +71,16 @@ async def get_sessions(limit: int = 20):
 @app.get("/api/sessions/{session_id}", response_model=SessionDetailResponse, tags=["会话管理"])
 async def get_session_detail(session_id: str):
     """获取特定会话的详细消息历史与总结摘要"""
-    messages, summary = memory_manager.load_session(session_id)
-    if not messages and not summary:
+    messages, summary, session_meta = memory_manager.load_session(session_id)
+    if not messages and not summary and not session_meta:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"未找到 Session ID 为 '{session_id}' 的会话",
         )
     return SessionDetailResponse(
         session_id=session_id,
+        provider_name=session_meta.get("provider_name", ""),
+        model_name=session_meta.get("model_name", ""),
         summary=summary,
         messages=messages,
     )
@@ -104,7 +107,7 @@ async def chat_completions(req: ChatRequest):
 
         # 加载历史会话（如果指定了 session_id）
         if req.session_id:
-            messages, summary = memory_manager.load_session(req.session_id)
+            messages, summary, _ = memory_manager.load_session(req.session_id)
             chat_session.load_history(messages, summary)
         else:
             memory_manager.prepare_new_session()
@@ -148,7 +151,7 @@ async def chat_stream(req: ChatRequest):
 
             # 加载历史
             if req.session_id:
-                messages, summary = memory_manager.load_session(req.session_id)
+                messages, summary, _ = memory_manager.load_session(req.session_id)
                 chat_session.load_history(messages, summary)
             else:
                 memory_manager.prepare_new_session()
@@ -198,6 +201,10 @@ async def chat_stream(req: ChatRequest):
 
     return EventSourceResponse(event_generator())
 
+# 4. 挂载静态文件服务 (将 app/static 映射到根路径 /)
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn

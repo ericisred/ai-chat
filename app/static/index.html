@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💬 AI Chat - 智能对话助手</title>
+    <!-- 引入高颜值毛玻璃暗黑样式表 -->
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Marked.js 解析 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 (Sidebar) -->
+        <aside class="sidebar">
+            <div class="brand-header">
+                <span class="brand-icon">💬</span>
+                <h1 class="brand-title">AI Chat</h1>
+            </div>
+
+            <button id="btn-new-chat" class="btn-new-chat">
+                <span>➕</span> 开启新对话
+            </button>
+
+            <div class="session-list-title">历史会话</div>
+
+            <!-- 动态渲染历史会话列表 -->
+            <div id="session-list" class="session-list"></div>
+        </aside>
+
+        <!-- 主聊天区 (Main Content) -->
+        <main class="main-content">
+            <!-- 顶部 Header & 模型选择 -->
+            <header class="chat-header">
+                <div class="model-selector-wrapper">
+                    <span class="model-label">当前模型:</span>
+                    <select id="model-select" class="model-select">
+                        <!-- 由 app.js 动态填充 -->
+                    </select>
+                </div>
+            </header>
+
+            <!-- 消息历史展示区 -->
+            <div id="chat-messages" class="chat-messages">
+                <div class="message-card assistant">
+                    <div class="avatar">🤖</div>
+                    <div class="message-body">
+                        你好！我是你的 AI 助手。你可以问我任何问题，或者挑选顶部的模型开启新一轮对话！
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部输入框区 -->
+            <div class="input-container">
+                <div class="input-box-wrapper">
+                    <textarea id="chat-input" class="chat-textarea"
+                        placeholder="给 AI Chat 发送消息... (Enter 发送，Shift+Enter 换行)" rows="1"></textarea>
+                    <button id="btn-send" class="btn-send" title="发送消息">
+                        ➔
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 引入前端主交互逻辑 -->
+    <script src="app.js"></script>
+</body>
+
+</html>

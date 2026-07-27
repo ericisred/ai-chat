@@ -117,7 +117,7 @@ class SQLiteStorage:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT role, content
+                SELECT role, content, created_at
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY id ASC
@@ -141,6 +141,21 @@ class SQLiteStorage:
             )
             row = cursor.fetchone()
             return row["summary"] if row and row["summary"] else ""
+
+    def get_session(self, session_id: str) -> Optional[Dict]:
+        """获取指定会话的主记录元数据"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, title, provider_name, model_name, summary, created_at, updated_at
+                FROM sessions
+                WHERE id = ?
+            """,
+                (session_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
     def update_session_summary(self, session_id: str, summary: str):
         """更新指定会话的记忆摘要"""
